@@ -62,10 +62,6 @@ export async function startBatchExplorer(args: BatchExplorerArgs) {
     // But this is a false positive when using dev server has it doesn't seem to ignore localhost
     process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 
-    // TODO: After upgrading to Electron 9, see if removing this line breaks
-    //       anything. (The default in Electron 9 has changed to true)
-    app.allowRendererProcessReuse = false;
-
     log.info("Program arguments", args);
     if (args.ignoreCertificateErrors) {
         log.warn("Ignoring HTTPS certificates");
@@ -75,6 +71,14 @@ export async function startBatchExplorer(args: BatchExplorerArgs) {
     if (args.disableAutoupdate) {
         log.warn("Application will not autoupdate");
         autoUpdater.autoInstallOnAppQuit = false;
+    }
+
+    if (Constants.isDev) {
+        // Need to explicitly disable CORS when running in dev mode because
+        // the RateCard API returns a 404 when a pre-flight OPTIONS request
+        // is issued to it.
+        // See: https://github.com/electron/electron/issues/23664
+        app.commandLine.appendSwitch("disable-features", "OutOfBlinkCors");
     }
 
     const module = await platformDynamicServer().bootstrapModule(BatchExplorerClientModule);

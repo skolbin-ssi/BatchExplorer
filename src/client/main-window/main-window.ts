@@ -1,7 +1,7 @@
 import { AUTO_UPDATE_MAIN_SERVICE_TOKEN } from "@batch-flask/electron";
 import { log } from "@batch-flask/utils";
 import { TelemetryManager } from "client/core/telemetry";
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, app, ipcMain, nativeImage } from "electron";
 import { BehaviorSubject, Observable } from "rxjs";
 import { Constants } from "../client-constants";
 import { BatchExplorerApplication, GenericWindow } from "../core";
@@ -31,11 +31,11 @@ export class MainWindow extends GenericWindow {
     public state: Observable<WindowState>;
 
     public get webContents() {
-        return this._window!.webContents;
+        return this._window.webContents;
     }
 
     private _state = new BehaviorSubject<WindowState>(WindowState.Closed);
-    private _resolveAppReady: () => void;
+    private _resolveAppReady: (value?: any) => void;
 
     constructor(batchExplorerApp: BatchExplorerApplication, private telemetryManager: TelemetryManager) {
         super(batchExplorerApp);
@@ -57,7 +57,7 @@ export class MainWindow extends GenericWindow {
     }
 
     public once(event: any, callback: (...args) => void) {
-        return this._window!.once(event, callback);
+        return this._window.once(event, callback);
     }
 
     protected createWindow() {
@@ -65,7 +65,7 @@ export class MainWindow extends GenericWindow {
         const window = new BrowserWindow({
             title: app.name,
             height: 1000,
-            icon: Constants.urls.icon,
+            icon: nativeImage.createFromDataURL(Constants.urls.icon),
             width: 1600,
             minWidth: 1200,
             minHeight: 300,
@@ -75,6 +75,7 @@ export class MainWindow extends GenericWindow {
                 webSecurity: false,
                 allowRunningInsecureContent: false,
                 nodeIntegration: true,
+                enableRemoteModule: true,
             },
         });
 
@@ -97,19 +98,7 @@ export class MainWindow extends GenericWindow {
 
         // Open the DevTools.
         if (process.env.NODE_ENV !== "production") {
-            window.webContents.openDevTools();
-            // activate devtron for the user if they have it installed and it's not already added
-            try {
-                const devtronAlreadyAdded = BrowserWindow.getDevToolsExtensions &&
-                    {}.hasOwnProperty.call(BrowserWindow.getDevToolsExtensions(), "devtron");
-
-                if (!devtronAlreadyAdded) {
-                    BrowserWindow.addDevToolsExtension(require("devtron").path);
-                }
-            } catch (error) {
-                log.error("Error adding devtron", error);
-            }
-
+            window.webContents.openDevTools({ mode: 'undocked' });
         }
 
         return window;
@@ -133,12 +122,12 @@ export class MainWindow extends GenericWindow {
             }
         });
 
-        window.webContents.on("did-fail-load", (error) => {
+        window.webContents.on("did-fail-load", (event, errorCode, errorDescription) => {
             this._state.next(WindowState.FailedLoad);
-            log.error("Fail to load", error);
+            log.error(`Failed to load main window: ${errorDescription} (Error code ${errorCode})`);
         });
 
-        // tslint:disable-next-line:ban-types
+        // eslint-disable-next-line @typescript-eslint/ban-types
         window.on("unresponsive", (error: Error) => {
             log.error("There was a crash", error);
             this.batchExplorerApp.recoverWindow.createWithError(error.message);

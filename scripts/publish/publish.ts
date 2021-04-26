@@ -18,7 +18,7 @@ const newIssueBody = `
 
 function log(text: string) {
     allMessages.push(text);
-    // tslint:disable-next-line:no-console
+    // eslint-disable no-console
     console.log(text);
 }
 
@@ -108,7 +108,7 @@ async function updateChangeLog(version, millestoneId) {
     const changelogFile = path.join(root, "CHANGELOG.md");
     const changelogContent = fs.readFileSync(changelogFile);
 
-    if (changelogContent.indexOf(`# ${version}`) === -1) {
+    if (changelogContent.indexOf(`## ${version}`) === -1) {
         fs.writeFileSync(changelogFile, `${stdout}\n${changelogContent}`);
         success("Added changes to the changelog");
     } else {
@@ -157,7 +157,7 @@ async function createPullrequestIfNot(version, releaseBranch, issue) {
 }
 
 async function buildApp() {
-    // tslint:disable-next-line:no-console
+    // eslint-disable no-console
     console.log("Building the app with npm run build-and-pack...");
     await run("npm run build-and-pack");
     success("Build the app successfully. Starting it now, double check it is working correctly");

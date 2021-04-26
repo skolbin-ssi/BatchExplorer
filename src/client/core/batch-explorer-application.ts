@@ -12,7 +12,7 @@ import { ProxyCredentialsWindow } from "client/proxy/proxy-credentials-window";
 import { ProxySettingsManager } from "client/proxy/proxy-settings";
 import { BatchExplorerLink, Constants, Deferred } from "common";
 import { IpcEvent } from "common/constants";
-import { app, dialog, ipcMain, session } from "electron";
+import { app, dialog, ipcMain, protocol, session } from "electron";
 import { UpdateCheckResult } from "electron-updater";
 import { ProxyCredentials, ProxySettings } from "get-proxy-settings";
 import * as os from "os";
@@ -27,7 +27,7 @@ import { MainWindowManager } from "./main-window-manager";
 
 const osName = `${os.platform()}-${os.arch()}/${os.release()}`;
 const isDev = ClientConstants.isDev ? "-dev" : "";
-const userAgent = `(${osName}) BatchExplorer/${ClientConstants.version}${isDev}`;
+const userAgentSuffix = `(${osName}) BatchExplorer/${ClientConstants.version}${isDev}`;
 
 export enum BatchExplorerState {
     Loading,
@@ -79,6 +79,7 @@ export class BatchExplorerApplication {
         await this.aadService.init();
         this._registerProtocol();
         this._setupProcessEvents();
+        this._registerFileProtocol();
         await this.proxySettings.init();
     }
 
@@ -91,7 +92,10 @@ export class BatchExplorerApplication {
         this.pythonServer.start();
         this._initializer.init();
 
-        this._setCommonHeaders();
+        const window = await this.openFromArguments(process.argv, false);
+        if (!window) { return; }
+
+        this._setCommonHeaders(window);
         const loginResponse = this.aadService.login();
         loginResponse.done.catch((e) => {
             if (e instanceof LogoutError) {
@@ -108,8 +112,7 @@ export class BatchExplorerApplication {
         await loginResponse.started;
 
         this._initializer.setTaskStatus("window", "Loading application");
-        const window = await this.openFromArguments(process.argv, false);
-        if (!window) { return; }
+
         const windowSub = window.state.subscribe((state) => {
             switch (state) {
                 case WindowState.Loading:
@@ -277,7 +280,7 @@ export class BatchExplorerApplication {
             process.exit(1);
         });
 
-        // tslint:disable-next-line:ban-types
+        // eslint-disable-next-line @typescript-eslint/ban-types
         process.on("uncaughtException" as any, (error: Error) => {
             log.error("There was a uncaught exception", error);
             this.recoverWindow.createWithError(error.message);
@@ -285,7 +288,7 @@ export class BatchExplorerApplication {
             this.telemetryService.flush(true);
         });
 
-        // tslint:disable-next-line: ban-types
+        // eslint-disable-next-line @typescript-eslint/ban-types
         process.on("unhandledRejection", (r: Error) => {
             log.error("Unhandled promise error:", r);
             this.telemetryService.trackError(r);
@@ -325,8 +328,16 @@ export class BatchExplorerApplication {
         }
     }
 
-    private _setCommonHeaders() {
+    private _registerFileProtocol() {
+        protocol.registerFileProtocol("file", (request,  callback) => {
+            const pathName = decodeURI(request.url.replace("file:///", ""));
+            callback(pathName);
+        });
+    }
+
+    private _setCommonHeaders(window: MainWindow) {
         const requestFilter = { urls: ["*://*/*"] };
+        const userAgent = `${window.webContents.getUserAgent()} ${userAgentSuffix}`;
         session!.defaultSession!.webRequest.onBeforeSendHeaders(requestFilter, (details, callback) => {
             if (details.url.includes("batch.azure.com")) {
                 details.requestHeaders["Origin"] = "http://localhost";

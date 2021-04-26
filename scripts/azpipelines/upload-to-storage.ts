@@ -1,10 +1,9 @@
-// tslint:disable:no-console
-// @ts-check
-const fs = require("fs");
-const path = require("path");
-const azureStorage = require("azure-storage");
-const { getManifest, getContainerName } = require("./utils");
-const crypto = require("crypto");
+// eslint-disable no-console
+import * as fs from "fs";
+import * as path from "path";
+import * as AzureStorage from "azure-storage";
+import { getManifest, getContainerName } from "./utils";
+import * as crypto from "crypto";
 
 const storageAccountName = process.env.AZURE_STORAGE_ACCOUNT;
 const storageAccountKey = process.argv[2];
@@ -18,16 +17,16 @@ if (!storageAccountKey) {
 }
 
 console.log("Uploading to storage account:", storageAccountName);
-const blobService = azureStorage.createBlobService(storageAccountName, storageAccountKey);
+const blobService = AzureStorage.createBlobService(storageAccountName, storageAccountKey);
 
 function computeFileMd5(filename) {
     const data = fs.readFileSync(filename);
     return crypto.createHash("md5").update(data).digest("base64");
 }
 
-async function getBlob(container, blobName) {
+async function getBlob(container, blobName): Promise<AzureStorage.BlobService.BlobResult> {
     return new Promise((resolve, reject) => {
-        blobService.getBlobProperties(container, blobName, (error, result, response) => {
+        blobService.getBlobProperties(container, blobName, (error, result) => {
             if (error) {
                 return reject(error);
             }
@@ -38,9 +37,9 @@ async function getBlob(container, blobName) {
 }
 
 async function createBlobFromLocalFile(container, filename, blobName, override = false) {
-    const options = {};
+    const options: AzureStorage.BlobService.CreateBlockBlobRequestOptions = {};
     if (!override) {
-        options.accessConditions = azureStorage.AccessCondition.generateIfNotExistsCondition();
+        options.accessConditions = AzureStorage.AccessCondition.generateIfNotExistsCondition();
     }
 
     return new Promise((resolve, reject) => {
