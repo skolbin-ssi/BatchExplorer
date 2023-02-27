@@ -1,8 +1,14 @@
 steps:
+  - template: ../common/set-dist-vars.yml
   - template: ./credscan.yml
   - template: ./win-dependencies.yml
-  - powershell: ./scripts/azpipelines/update-build-name.ps1
-    displayName: Resolve version
+
+  - powershell: |
+      $version = npm run -s ts scripts/package/get-version
+      Write-Host "Updating build number to $version"
+      Write-Host "##vso[build.updatebuildnumber]$version"
+    displayName: Update build version for packaging
+
   - powershell: |
       . .vsts/win/exec.ps1
       $ErrorActionPreference = "Stop"
